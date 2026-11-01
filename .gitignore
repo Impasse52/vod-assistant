@@ -1,6 +1,10 @@
-data/** 
+__pycache__
+
 *.csv
 *.mkv
 *.mp4
 *.png
-**/__pycache/** */
+
+output
+data
+model
