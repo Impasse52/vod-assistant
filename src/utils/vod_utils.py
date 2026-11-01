@@ -1,4 +1,5 @@
 from copy import deepcopy
+from scipy.cluster.hierarchy import dendrogram
 from datetime import timedelta
 import matplotlib.pyplot as plt
 import os
@@ -106,12 +107,13 @@ def plot_1d_scatter(
     label: str | None = None,
     c: str | None = None,
     edgecolors: str | None = None,
+    s: int = 35,
 ) -> None:
     plt.scatter(
         x=df[col],
         y=[0 for _ in range(df.shape[0])],
         marker="s",
-        s=35,
+        s=s,
         label=label,
         c=df[c] if c else None,
         edgecolors=edgecolors,
@@ -174,7 +176,9 @@ def games_to_sets(df: pd.DataFrame, n_clusters: int):
     df = df[df["label"] == "gameplay"]
 
     # setup clustering algorithm
-    clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage="single")
+    clustering = AgglomerativeClustering(
+        n_clusters=n_clusters, linkage="single", compute_distances=True
+    )
 
     # convert datetime to int
     tmp = deepcopy(df)
@@ -187,4 +191,24 @@ def games_to_sets(df: pd.DataFrame, n_clusters: int):
     # add clusters to dataframe for easy handling
     df.loc[:, "cluster"] = labels
 
-    return df
+    return df, clustering
+
+
+def plot_dendrogram(model, **kwargs):
+    # Children of hierarchical clustering
+    children = model.children_
+
+    # Distances between each pair of children
+    # Since we don't have this information, we'll use a uniform one
+    distances = np.arange(children.shape[0])
+
+    # Number of observations in each cluster
+    no_of_observations = np.arange(2, children.shape[0] + 2)
+
+    # Create linkage matrix
+    linkage_matrix = np.column_stack([children, distances, no_of_observations]).astype(
+        float
+    )
+
+    # Plot the corresponding dendrogram
+    dendrogram(linkage_matrix, **kwargs)

@@ -47,7 +47,7 @@ if __name__ == "__main__":
         timestamps_dir = sys.argv[2]
     else:
         input_dir = "/home/impasse/Code/Projects/VOD-Assistant/u.mkv"
-        timestamps_dir = "/home/impasse/Code/Projects/VOD-Assistant/data/timestamps/2024-04-28_2131834020/2024-04-28_2131834020.md"
+        timestamps_dir = "/home/impasse/Code/Projects/VOD-Assistant/data/timestamps/2024-09-22_2257511253/2024-09-22_2257511253.md"
 
     with open(
         "/home/impasse/Code/Projects/Thumbfair/thumbfair/resources/skins.json"
@@ -69,9 +69,9 @@ if __name__ == "__main__":
         p2_char = p2_char.split(", ")[0]
 
         output = gen_thumbnail(
-            replace_accented_with_quote(p1_nick).lower(),
-            replace_accented_with_quote(p2_nick).lower(),
-            r_name.lower(),
+            p1_nick,
+            p2_nick,
+            r_name,
             p1_char,
             p2_char,
             skins[p1_char].get(p1_nick, "1"),
@@ -79,6 +79,6 @@ if __name__ == "__main__":
         )
         output.save(f"output/thumbnails/{t_name}/{p1_nick}_{p2_nick}_{r_name}.png")
 
-    # vods_dir = f"./output/vods/{t_name}"
+    vods_dir = f"./output/vods/{t_name}"
     # os.mkdir(vods_dir)
     # trim_vods(titles, input_dir, vods_dir)
