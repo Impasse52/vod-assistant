@@ -1,133 +1,71 @@
-import subprocess
+import argparse
 import sys
-
-import numpy as np
-import pandas as pd
-import torch
-from sklearn.decomposition import PCA
-from transformers import AutoModel
-
-W, H = 392, 224  # multipli di 14, mantiene il rapporto 16:9
-MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
 from pathlib import Path
 
-from tqdm import tqdm
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="vod-assistant")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    # Embed command
+    e = sub.add_parser("embed", help="embed 1 fps frames of VODs into .npy files")
+    e.add_argument("--video-dir", type=Path)
+    e.add_argument("--out-dir", type=Path, default=Path("embeddings"))
+    e.add_argument(
+        "--model",
+        default="facebook/dinov2-small",
+        help="HF model id (default: facebook/dinov2-small)",
+    )
+    e.add_argument("--force", action="store_true", help="recompute existing embeddings")
+    e.add_argument("batch_size", action="store_true", default=64)
+
+    # Train command
+    t = sub.add_parser("train", help="train a per-second scene classifier")
+    t.add_argument("--emb-dir", type=Path, required=True)
+    t.add_argument("--labels-dir", type=Path, required=True)
+    t.add_argument("--seed", type=int)
+
+    # PCA command
+    a = sub.add_parser("pca", help="PCA plot of the embeddings")
+    a.add_argument("--emb-dir", type=Path, required=True)
+    a.add_argument(
+        "--labels-dir", type=Path, required=True, help="Color points by label"
+    )
+    a.add_argument("--out-dir", type=Path, default=Path("pca"))
+
+    return p
 
 
-def duration(path: str) -> float | None:
-    """Return the video duration in seconds, or None if ffprobe cannot read it."""
-    out = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-            path,
-        ],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    try:
-        return float(out)
-    except ValueError:
-        return None
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    if args.command == "embed":
+        import numpy as np
 
+        from src.embed import embed
 
-def frames(path: str, fps: int = 1):
-    """Yield RGB frames of shape (H, W, 3), one every 1/fps seconds.
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        dest = args.out_dir / f"{args.video_dir.stem}.npy"
+        if dest.exists() and not args.force:
+            print(f"{dest} exists, skipping (use --force)")
+            return
 
-    Frames are decoded and resized by ffmpeg and read from its stdout, so
-    nothing is written to disk. The video frame rate does not matter: the
-    ``fps`` filter always keeps ``fps`` frames per second of footage.
-    """
-    dur = duration(path)
-    total = int(dur * fps) if dur else None
+        emb = embed(args.video_dir, batch_size=args.batch_size, model_name=args.model)
+        tmp = dest.with_suffix(".tmp.npy")
+        np.save(tmp, emb)
+        tmp.replace(dest)
 
-    cmd = [
-        "ffmpeg",
-        "-v",
-        "error",
-        "-i",
-        path,
-        "-vf",
-        f"fps={fps},scale={W}:{H}",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "-",
-    ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    size = W * H * 3  # bytes per frame: 3 bytes (R, G, B) per pixel
+        print(f"Saved {dest} {emb.shape}")
 
-    try:
-        with tqdm(total=total, unit="frame", desc=Path(path).name) as pbar:
-            while True:
-                buf = proc.stdout.read(size)
-                if len(buf) < size:  # end of the video
-                    break
-                pbar.update(1)
-                yield np.frombuffer(buf, np.uint8).reshape(H, W, 3)
-    finally:
-        # Do not leave ffmpeg running if the consumer stops early (e.g. Ctrl+C).
-        if proc.poll() is None:
-            proc.kill()
-        proc.wait()
+    if args.command == "pca":
+        from src.pca import run_pca
 
+        run_pca(args.emb_dir, args.out_dir, args.labels_dir)
 
-# Do not track gradients during training
-@torch.inference_mode()
-def embed(path: str, model_name: str = "facebook/dinov2-small", batch_size: int = 64):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = AutoModel.from_pretrained(model_name).to(device).eval()
-    if device == "cuda":
-        # Half precision
-        model = model.half()
+    if args.command == "train":
+        from src.train import train_logreg
 
-    mean, std = MEAN.to(device), STD.to(device)
-    features, buf = [], []
-
-    def flush():
-        x = torch.from_numpy(np.stack(buf)).to(device).permute(0, 3, 1, 2).float() / 255
-        x = (x - mean) / std
-        if device == "cuda":
-            x = x.half()  # Half precision
-        h = model(pixel_values=x).last_hidden_state  # (B, 1 + patch, D)
-
-        # CLS + media delle patch: la combinazione usata nel paper per il linear probing
-        features.append(torch.cat([h[:, 0], h[:, 1:].mean(1)], dim=1).float().cpu())
-        buf.clear()
-
-    # GPU is more efficient handling 64 images at once
-    for frame in frames(path):
-        buf.append(frame)
-        if len(buf) == batch_size:
-            flush()
-    if buf:
-        flush()
-    return torch.cat(features).numpy()  # (n_secondi, 2 * D)
-
-
-def load_timestamps(path: Path, fps_original: float, fps_target: float = 1.0):
-    df = pd.read_csv(path)
-
-    df["Start"] = (df["Start"] / fps_original * fps_target).round().astype(int)
-    df["End"] = (df["End"] / fps_original * fps_target).round().astype(int)
-
-    return df
+        train_logreg(args.emb_dir, args.labels_dir)
 
 
 if __name__ == "__main__":
-    video, dest = sys.argv[1], sys.argv[2]
-
-    fps_original = 30000 / 1001
-    ts_path = Path("./data/genesis_x3_top64_ssbu.mp4.csv")
-    df = load_timestamps(ts_path, fps_original)
-    print(df)
-
-    ## Load embeddings
-    feats = np.load(dest + ".npy")
+    main()
