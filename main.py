@@ -1,5 +1,4 @@
 import argparse
-import sys
 from pathlib import Path
 
 
@@ -21,9 +20,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Train command
     t = sub.add_parser("train", help="train a per-second scene classifier")
-    t.add_argument("--emb-dir", type=Path, required=True)
-    t.add_argument("--labels-dir", type=Path, required=True)
-    t.add_argument("--seed", type=int)
+    t.add_argument(
+        "--pairs", nargs="+", help="emb.npy:labels.csv, one per VOD", required=True
+    )
+    t.add_argument("--fps", type=int, default=29.97)
+    t.add_argument(
+        "--classes", nargs="+", default=["game", "camera", "comms", "layout"]
+    )
 
     # PCA command
     a = sub.add_parser("pca", help="PCA plot of the embeddings")
@@ -64,7 +67,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "train":
         from src.train import train_logreg
 
-        train_logreg(args.emb_dir, args.labels_dir)
+        train_logreg(args.pairs, args.classes, args.fps)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ def duration(path: str) -> float | None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     ).stdout.strip()
     try:
         return float(out)
