@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-W, H = 392, 224  # multipli di 14, mantiene il rapporto 16:9
+W, H = 392, 224  # multiples of 14 to maintain 16:9 ratio
 
 
 def duration(path: str) -> float | None:
