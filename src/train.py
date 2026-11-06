@@ -4,44 +4,43 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 
+from .labels import load_labels, to_indices
+
 UNLABELED = -1
 
 
-def load_vod(emb_path, csv_path, fps, classes, name_map=None):
-    """Return (X, y) keeping only the seconds covered by a label.
-
-    name_map renames the CSV class names before indexing into `classes`.
-    A name missing from name_map raises KeyError, so a typo in the CSV
-    cannot silently become a wrong class.
-    """
+def load_vod(emb_path, csv_path, classes, name_map=None):
     emb = np.load(emb_path)  # (N, D), one row per second
-    labels = pd.read_csv(csv_path)
+    labels = load_labels(csv_path, n_seconds=len(emb))
 
     y = np.full(len(emb), UNLABELED, dtype=int)
     for row in labels.itertuples():
-        name = name_map[row.Name] if name_map else row.Name
-
-        # frame -> second; second i is labeled if it falls inside [start, end)
-        first = int(np.ceil(row.Start / fps))
-        last = int(np.ceil(row.End / fps))
+        name = name_map[row.Name] if name_map else row.Name  # type: ignore
+        first, last = to_indices(row.Start, row.End, len(emb))  # type: ignore
         y[first:last] = classes.index(name)
 
-    mask = y != UNLABELED  # skip unlabeled embeddings
+    mask = y != UNLABELED
     return emb[mask], y[mask]
 
 
-def segment_report(clf, scaler, emb_path, csv_path, fps, classes, name_map=None):
+def segment_report(clf, scaler, emb_path, csv_path, classes, name_map=None):
     """Per-segment accuracy of the predictions on one VOD."""
     emb = np.load(emb_path)
     pred = clf.predict(scaler.transform(emb))
+    df = pd.read_csv(csv_path)
+
     rows = []
-    for r in pd.read_csv(csv_path).itertuples():
-        a, b = int(np.ceil(r.Start / fps)), int(np.ceil(r.End / fps))
+    for r in df.itertuples():
+        a, b = to_indices(r.Start, r.End, len(emb))  # type: ignore
+
         if b <= a:
             continue
-        true = classes.index(name_map[r.Name] if name_map else r.Name)
-        rows.append((r.Name, a, b - a, (pred[a:b] == true).mean()))
+
+        true = classes.index(name_map[r.Name] if name_map else r.Name)  # type: ignore
+        rows.append((r.Name, a, b - a, (pred[a:b] == true).mean()))  # type: ignore
+
     df = pd.DataFrame(rows, columns=["name", "start_s", "dur_s", "acc"])
+
     print(df.sort_values("dur_s", ascending=False).round(2).to_string(index=False))
 
 
@@ -55,7 +54,7 @@ def train_logreg(pairs, classes, fps=29.97, name_map=None):
     vods = []
     for pair in pairs:
         emb_path, csv_path = pair.split(":")
-        vods.append(load_vod(emb_path, csv_path, fps, classes, name_map))
+        vods.append(load_vod(emb_path, csv_path, classes, name_map))
 
     if len(vods) < 2:
         raise SystemExit("Need at least 2 VODs (train + held-out eval).")

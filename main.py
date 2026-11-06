@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Embed command
     e = sub.add_parser("embed", help="embed 1 fps frames of VODs into .npy files")
-    e.add_argument("--video-dir", type=Path)
+    e.add_argument("--video-path", type=Path)
     e.add_argument("--out-dir", type=Path, default=Path("embeddings"))
     e.add_argument(
         "--model",
@@ -34,7 +34,6 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument(
         "--pairs", nargs="+", help="embeds.npy:labels.csv, one per VOD", required=True
     )
-    t.add_argument("--fps", type=float, default=29.97)
     t.add_argument(
         "--classes", nargs="+", default=["game", "playercam", "comms", "layout"]
     )
@@ -46,9 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # PCA command
     a = sub.add_parser("pca", help="PCA plot of the embeddings")
-    a.add_argument("--emb-dir", type=Path, required=True)
+    a.add_argument("--emb-path", type=Path, required=True)
     a.add_argument(
-        "--labels-dir", type=Path, required=True, help="Color points by label"
+        "--labels-path", type=Path, required=True, help="Color points by label"
     )
     a.add_argument("--out-dir", type=Path, default=Path("pca"))
 
@@ -63,12 +62,12 @@ def main(argv: list[str] | None = None) -> None:
         from src.embed import embed
 
         args.out_dir.mkdir(parents=True, exist_ok=True)
-        dest = args.out_dir / f"{args.video_dir.stem}.npy"
+        dest = args.out_dir / f"{args.video_path.stem}.npy"
         if dest.exists() and not args.force:
             print(f"{dest} exists, skipping (use --force)")
             return
 
-        emb = embed(args.video_dir, batch_size=args.batch_size, model_name=args.model)
+        emb = embed(args.video_path, batch_size=args.batch_size, model_name=args.model)
         tmp = dest.with_suffix(".tmp.npy")
         np.save(tmp, emb)
         tmp.replace(dest)
@@ -78,7 +77,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "pca":
         from src.pca import run_pca
 
-        run_pca(args.emb_dir, args.out_dir, args.labels_dir)
+        run_pca(args.emb_path, args.out_dir, args.labels_path)
 
     if args.command == "train":
         from src.train import train_logreg
@@ -87,7 +86,7 @@ def main(argv: list[str] | None = None) -> None:
         # Unique target classes, in order of first appearance.
         classes = list(dict.fromkeys(name_map.values())) if name_map else args.classes
         print("classes:", classes)
-        train_logreg(args.pairs, classes, args.fps, name_map)
+        train_logreg(args.pairs, classes, name_map)
 
 
 if __name__ == "__main__":

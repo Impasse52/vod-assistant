@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 
-from src.embed import load_timestamps
+from .labels import load_labels, to_indices
 
 
-def run_pca(emb_dir: Path, out_dir: Path, labels_dir: Path):
-    feats = np.load(emb_dir)
+def run_pca(emb_path: Path, out_path: Path, labels_path: Path):
+    feats = np.load(emb_path)
 
     # Project all embeddings together
     pca = PCA(n_components=2)
@@ -18,16 +18,10 @@ def run_pca(emb_dir: Path, out_dir: Path, labels_dir: Path):
     # Assign labels to every sampled frame
     labels = np.full(len(feats), "unknown", dtype=object)
 
-    fps_original = 30000 / 1001
-    df = load_timestamps(labels_dir, fps_original)
-    for _, row in df.iterrows():
-        start = int(row["Start"])
-        end = int(row["End"])
-
-        start = max(0, start)
-        end = min(len(feats), end)
-
-        labels[start:end] = row["Name"]
+    df = load_labels(labels_path, n_seconds=len(feats))
+    for row in df.itertuples():
+        first, last = to_indices(row.Start, row.End, len(feats))  # type: ignore
+        labels[first:last] = row.Name  # type: ignore
 
     # Create dataframe
     results = pd.DataFrame(
@@ -57,7 +51,7 @@ def run_pca(emb_dir: Path, out_dir: Path, labels_dir: Path):
     plt.show()
     plt.tight_layout()
 
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path.mkdir(parents=True, exist_ok=True)
 
-    fig.savefig(out_dir / f"{emb_dir.name}_pca.png", dpi=150)
+    fig.savefig(out_path / f"{emb_path.name}_pca.png", dpi=150)
     plt.close(fig)

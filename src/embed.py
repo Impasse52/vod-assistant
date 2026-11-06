@@ -1,7 +1,4 @@
-from pathlib import Path
-
 import numpy as np
-import pandas as pd
 import torch
 from transformers import AutoModel
 
@@ -43,12 +40,3 @@ def embed(path: str, model_name: str = "facebook/dinov2-small", batch_size: int 
         flush()
 
     return torch.cat(features).numpy()  # (n_secondi, 2 * D)
-
-
-def load_timestamps(path: Path, fps_original: float, fps_target: float = 1.0):
-    df = pd.read_csv(path)
-
-    df["Start"] = (df["Start"] / fps_original * fps_target).round().astype(int)
-    df["End"] = (df["End"] / fps_original * fps_target).round().astype(int)
-
-    return df
