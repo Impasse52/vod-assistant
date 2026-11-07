@@ -5,14 +5,23 @@ import pandas as pd
 
 from src.labels import to_intervals
 
+LABELS = ["game", "playercam", "comms", "layout", "none"]
+
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
-    "game-vs-other": {
+    "game-only": {
         "game": "game",
         "playercam": "other",
-        "camera": "other",
         "comms": "other",
         "layout": "other",
+        "none": "other",
+    },
+    "cameras": {
+        "game": "game",
+        "playercam": "camera",
+        "comms": "camera",
+        "layout": "none",
+        "none": "none",
     },
 }
 
@@ -38,9 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument(
         "--pairs", nargs="+", help="embeds.npy:labels.csv, one per VOD", required=True
     )
-    t.add_argument(
-        "--classes", nargs="+", default=["game", "playercam", "comms", "layout"]
-    )
+    t.add_argument("--classes", nargs="+", default=LABELS)
     t.add_argument(
         "--merge",
         choices=sorted(MERGES),
@@ -60,9 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--emb-path", help="Path of embeds file", type=Path, required=True)
     t.add_argument("--model-path", type=Path, required=True)
     t.add_argument("--out-dir", required=False, default=Path("output"))
-    t.add_argument(
-        "--classes", nargs="+", default=["game", "playercam", "comms", "layout"]
-    )
+    t.add_argument("--classes", nargs="+", default=LABELS)
 
     return p
 
