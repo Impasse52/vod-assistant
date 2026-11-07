@@ -51,6 +51,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     a.add_argument("--out-dir", type=Path, default=Path("pca"))
 
+    # Predict frames command
+    t = sub.add_parser("pred-frames", help="Predict frames on embeds using a model")
+    t.add_argument(
+        "--embeds", nargs="+", help="embeds.npy:labels.csv, one per VOD", required=True
+    )
+    t.add_argument(
+        "--classes", nargs="+", default=["game", "playercam", "comms", "layout"]
+    )
+    t.add_argument("--model-path")
+
     return p
 
 

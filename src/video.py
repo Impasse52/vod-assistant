@@ -60,7 +60,7 @@ def frames(path: str, fps: int = 1):
     try:
         with tqdm(total=total, unit="frame", desc=Path(path).name) as pbar:
             while True:
-                buf = proc.stdout.read(size)
+                buf = proc.stdout.read(size)  # type: ignore
                 if len(buf) < size:  # end of the video
                     break
                 pbar.update(1)

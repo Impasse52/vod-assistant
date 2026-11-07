@@ -1,7 +1,10 @@
+from pathlib import Path
+
+import joblib
 import numpy as np
-import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
 
 from .labels import load_labels, to_indices
@@ -10,52 +13,27 @@ UNLABELED = -1
 
 
 def load_vod(emb_path, csv_path, classes, name_map=None):
-    emb = np.load(emb_path)  # (N, D), one row per second
-    labels = load_labels(csv_path, n_seconds=len(emb))
+    X = np.load(emb_path)  # (N, D), one row per second
+    labels = load_labels(csv_path)
 
-    y = np.full(len(emb), UNLABELED, dtype=int)
+    # Build matrix of label indexes
+    y = np.full(len(X), UNLABELED, dtype=int)
     for row in labels.itertuples():
         name = name_map[row.Name] if name_map else row.Name  # type: ignore
-        first, last = to_indices(row.Start, row.End, len(emb))  # type: ignore
+        first, last = to_indices(row.Start, row.End, len(X))  # type: ignore
         y[first:last] = classes.index(name)
 
     mask = y != UNLABELED
-    return emb[mask], y[mask]
-
-
-def segment_report(clf, scaler, emb_path, csv_path, classes, name_map=None):
-    """Per-segment accuracy of the predictions on one VOD."""
-    emb = np.load(emb_path)
-    pred = clf.predict(scaler.transform(emb))
-    df = pd.read_csv(csv_path)
-
-    rows = []
-    for r in df.itertuples():
-        a, b = to_indices(r.Start, r.End, len(emb))  # type: ignore
-
-        if b <= a:
-            continue
-
-        true = classes.index(name_map[r.Name] if name_map else r.Name)  # type: ignore
-        rows.append((r.Name, a, b - a, (pred[a:b] == true).mean()))  # type: ignore
-
-    df = pd.DataFrame(rows, columns=["name", "start_s", "dur_s", "acc"])
-
-    print(df.sort_values("dur_s", ascending=False).round(2).to_string(index=False))
-
-
-import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report, f1_score
-from sklearn.model_selection import GroupKFold
-from sklearn.preprocessing import StandardScaler
+    return X[mask], y[mask]
 
 
 def _make_clf():
-    return LogisticRegression(max_iter=1000, class_weight="balanced", C=0.0001)
+    return LogisticRegression(max_iter=1000, class_weight="balanced")
 
 
-def train_logreg(pairs, classes, name_map=None, n_splits=None):
+def train_logreg(
+    pairs, classes, name_map=None, n_splits=None, out_path=Path("./models")
+):
     """Evaluate a logistic regression with GroupKFold (group = VOD), then
     refit on all VODs and return the final model.
 
@@ -80,38 +58,53 @@ def train_logreg(pairs, classes, name_map=None, n_splits=None):
     print("Total class counts:", np.bincount(y, minlength=len(classes)))
     print(f"GroupKFold: {n_splits} folds over {len(vods)} VODs")
 
+    # Needed for pooled eval
     y_oof = np.empty_like(y)
+
     accs, f1s = [], []
 
-    for fold, (tr, te) in enumerate(GroupKFold(n_splits=n_splits).split(X, y, groups)):
-        # Fit the scaler on the training fold only.
-        scaler = StandardScaler().fit(X[tr])
-        clf = _make_clf().fit(scaler.transform(X[tr]), y[tr])
-        pred = clf.predict(scaler.transform(X[te]))
-        y_oof[te] = pred
+    for fold, samples in enumerate(GroupKFold(n_splits=n_splits).split(X, y, groups)):
+        train, test = samples
 
-        present = sorted(set(y[te]) | set(pred))
-        acc = accuracy_score(y[te], pred)
-        f1 = f1_score(y[te], pred, labels=present, average="macro", zero_division=0)
+        # Fit the scaler on the training fold only
+        scaler = StandardScaler().fit(X[train])
+        clf = _make_clf().fit(scaler.transform(X[train]), y[train])
+        pred = clf.predict(scaler.transform(X[test]))
+        y_oof[test] = pred
+
+        # Compute metrics
+        curr_labels = sorted(set(y[test]) | set(pred))
+        acc = accuracy_score(y[test], pred)
+        f1 = f1_score(
+            y[test], pred, labels=curr_labels, average="macro", zero_division=0
+        )
         accs.append(acc)
         f1s.append(f1)
         print(
-            f"Fold {fold}: test VODs={sorted(set(groups[te]))} "
+            f"Fold {fold}: test VODs={sorted(set(groups[test]))} "
             f"acc={acc:.3f} macro-F1={f1:.3f}"
+        )
+        print(
+            classification_report(
+                y[test],
+                pred,
+                labels=curr_labels,
+                target_names=[classes[i] for i in curr_labels],
+                zero_division=0,
+            )
         )
 
     print(f"\nMean acc:      {np.mean(accs):.3f} ± {np.std(accs):.3f}")
     print(f"Mean macro-F1: {np.mean(f1s):.3f} ± {np.std(f1s):.3f}\n")
 
-    # Pooled report over all out-of-fold predictions (more stable than
-    # per-fold reports when single VODs have few examples of some classes).
-    present = sorted(set(y) | set(y_oof))
+    # Pooled report over all out-of-fold predictions
+    curr_labels = sorted(set(y) | set(y_oof))
     print(
         classification_report(
             y,
             y_oof,
-            labels=present,
-            target_names=[classes[i] for i in present],
+            labels=curr_labels,
+            target_names=[classes[i] for i in curr_labels],
             zero_division=0,
         )
     )
@@ -120,6 +113,9 @@ def train_logreg(pairs, classes, name_map=None, n_splits=None):
     scaler = StandardScaler().fit(X)
     clf = _make_clf().fit(scaler.transform(X), y)
 
-    # segment_report(clf, scaler, emb_path, csv_path, fps, classes, name_map)
+    # Save the model together with the class names, so inference
+    # does not depend on the order of a list defined elsewhere.
+    out_path.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"model": clf, "classes": classes}, "models/logreg.joblib")
 
     return clf, scaler

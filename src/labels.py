@@ -12,13 +12,8 @@ import numpy as np
 import pandas as pd
 
 
-def load_labels(csv_path: str | Path, n_seconds: int | None = None) -> pd.DataFrame:
-    """Read a label CSV with columns Start, End, Name (Start/End in seconds).
-
-    If ``n_seconds`` is given, raise when a label lies past the end of the
-    VOD. This is the typical symptom of a CSV that is still in frames, which
-    would otherwise be silently ignored by array slicing.
-    """
+def load_labels(csv_path: str | Path) -> pd.DataFrame:
+    """Read a label CSV with columns Start, End, Name (Start/End in seconds)."""
     df = pd.read_csv(csv_path)
     df["Start"] = df["Start"].astype(float)
     df["End"] = df["End"].astype(float)
