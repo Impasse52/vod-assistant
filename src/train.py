@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .labels import load_labels, to_indices
@@ -28,7 +29,10 @@ def load_vod(emb_path, csv_path, classes, name_map=None):
 
 
 def _make_clf():
-    return LogisticRegression(max_iter=1000, class_weight="balanced")
+    return make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=1000, class_weight="balanced"),
+    )
 
 
 def train_logreg(
@@ -66,10 +70,8 @@ def train_logreg(
     for fold, samples in enumerate(GroupKFold(n_splits=n_splits).split(X, y, groups)):
         train, test = samples
 
-        # Fit the scaler on the training fold only
-        scaler = StandardScaler().fit(X[train])
-        clf = _make_clf().fit(scaler.transform(X[train]), y[train])
-        pred = clf.predict(scaler.transform(X[test]))
+        clf = _make_clf().fit(X[train], y[train])
+        pred = clf.predict(X[test])
         y_oof[test] = pred
 
         # Compute metrics
@@ -110,12 +112,14 @@ def train_logreg(
     )
 
     # Final model: refit on everything.
-    scaler = StandardScaler().fit(X)
-    clf = _make_clf().fit(scaler.transform(X), y)
+    clf = _make_clf().fit(X, y)
 
     # Save the model together with the class names, so inference
     # does not depend on the order of a list defined elsewhere.
     out_path.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"model": clf, "classes": classes}, "models/logreg.joblib")
+    joblib.dump(
+        {"model": clf, "classes": classes},
+        out_path / Path("logreg").with_suffix(".joblib"),  # temporarily hardcoded
+    )
 
-    return clf, scaler
+    return clf

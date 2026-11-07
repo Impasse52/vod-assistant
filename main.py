@@ -1,6 +1,10 @@
 import argparse
 from pathlib import Path
 
+import pandas as pd
+
+from src.labels import to_intervals
+
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
     "game-vs-other": {
@@ -53,13 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Predict frames command
     t = sub.add_parser("pred-frames", help="Predict frames on embeds using a model")
-    t.add_argument(
-        "--embeds", nargs="+", help="embeds.npy:labels.csv, one per VOD", required=True
-    )
+    t.add_argument("--emb-path", help="Path of embeds file", type=Path, required=True)
+    t.add_argument("--model-path", type=Path, required=True)
+    t.add_argument("--out-dir", required=False, default=Path("output"))
     t.add_argument(
         "--classes", nargs="+", default=["game", "playercam", "comms", "layout"]
     )
-    t.add_argument("--model-path")
 
     return p
 
@@ -97,6 +100,18 @@ def main(argv: list[str] | None = None) -> None:
         classes = list(dict.fromkeys(name_map.values())) if name_map else args.classes
         print("classes:", classes)
         train_logreg(args.pairs, classes, name_map)
+
+    if args.command == "pred-frames":
+        from src.pred import pred_frames
+
+        pred = pred_frames(args.emb_path, args.model_path)
+        intervals = to_intervals(pred)
+        df = pd.DataFrame(intervals, columns=["Start", "End", "Name"])
+
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(
+            Path(args.out_dir / args.emb_path.stem).with_suffix(".csv"), index=False
+        )
 
 
 if __name__ == "__main__":
