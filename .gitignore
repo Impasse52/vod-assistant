@@ -6,7 +6,6 @@ __pycache__
 *.png
 
 output
-data
 models
 embeddings
 pca
