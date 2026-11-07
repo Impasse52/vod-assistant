@@ -5,19 +5,19 @@ import pandas as pd
 
 from src.labels import to_intervals
 
-LABELS = ["game", "playercam", "comms", "layout", "none"]
+LABELS = ["ssbu", "playercam", "comms", "layout", "none"]
 
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
     "game-only": {
-        "game": "game",
+        "ssbu": "ssbu",
         "playercam": "other",
         "comms": "other",
         "layout": "other",
         "none": "other",
     },
     "cameras": {
-        "game": "game",
+        "ssbu": "ssbu",
         "playercam": "camera",
         "comms": "camera",
         "layout": "none",
