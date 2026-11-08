@@ -7,22 +7,25 @@ training, evaluation and PCA always agree.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
 
-def load_labels(csv_path: str | Path) -> pd.DataFrame:
+class Segment(NamedTuple):
+    start: float
+    end: float
+    name: str
+
+
+def load_labels(csv_path: str | Path) -> list[Segment]:
     """Read a label CSV with columns Start, End, Name (Start/End in seconds)."""
     df = pd.read_csv(csv_path)
-    df["Start"] = df["Start"].astype(float)
-    df["End"] = df["End"].astype(float)
-
-    if (df["End"] < df["Start"]).any():
-        raise ValueError(f"{csv_path}: found a label with End < Start")
-
-    return df
+    return [
+        Segment(float(s), float(e), str(n))
+        for s, e, n in zip(df["Start"], df["End"], df["Name"])
+    ]
 
 
 def to_indices(start: float, end: float, n: int) -> tuple[int, int]:

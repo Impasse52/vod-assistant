@@ -16,17 +16,17 @@ All VODs have been sampled at 480p1fps and embedded using `dinov2-small`.
 WIP
 
 ```
-Mean acc:      0.985 ± 0.006
-Mean macro-F1: 0.899 ± 0.112
+Mean acc:      0.986 ± 0.005
+Mean macro-F1: 0.900 ± 0.113
 
               precision    recall  f1-score   support
 
-        ssbu       0.99      0.99      0.99     57839
+        ssbu       0.99      1.00      0.99     57817
        melee       0.98      0.99      0.98     16646
-      camera       0.99      0.97      0.98     38942
-        none       0.95      0.98      0.97     18768
+      camera       0.99      0.97      0.98     38946
+        none       0.95      0.98      0.97     18646
 
-    accuracy                           0.98    132195
-   macro avg       0.98      0.98      0.98    132195
-weighted avg       0.98      0.98      0.98    132195
+    accuracy                           0.99    132055
+   macro avg       0.98      0.98      0.98    132055
+weighted avg       0.99      0.99      0.99    132055
 ```

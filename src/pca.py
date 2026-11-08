@@ -18,10 +18,9 @@ def run_pca(emb_path: Path, out_path: Path, labels_path: Path):
     # Assign labels to every sampled frame
     labels = np.full(len(feats), "unknown", dtype=object)
 
-    df = load_labels(labels_path)
-    for row in df.itertuples():
-        first, last = to_indices(row.Start, row.End, len(feats))  # type: ignore
-        labels[first:last] = row.Name  # type: ignore
+    for segment in load_labels(labels_path):
+        first, last = to_indices(segment.start, segment.end, len(feats))
+        labels[first:last] = segment.name
 
     # Create dataframe
     results = pd.DataFrame(

@@ -15,13 +15,16 @@ UNLABELED = -1
 
 def load_vod(emb_path, csv_path, classes, name_map=None):
     X = np.load(emb_path)  # (N, D), one row per second
-    labels = load_labels(csv_path)
+    # labels = load_labels(csv_path)
 
     # Build matrix of label indexes
     y = np.full(len(X), UNLABELED, dtype=int)
-    for row in labels.itertuples():
-        name = name_map[row.Name] if name_map else row.Name  # type: ignore
-        first, last = to_indices(row.Start, row.End, len(X))  # type: ignore
+    for segment in load_labels(csv_path):
+        name = name_map[segment.name] if name_map else segment.name
+        first, last = to_indices(segment.start, segment.end, len(X))
+        assert (y[first:last] == UNLABELED).all(), (
+            f"Overlap at {segment.start}-{segment.end}, {csv_path}"
+        )
         y[first:last] = classes.index(name)
 
     mask = y != UNLABELED
