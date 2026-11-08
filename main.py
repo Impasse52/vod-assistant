@@ -17,7 +17,7 @@ MERGES = {
         "layout": "other",
         "none": "other",
     },
-    "cameras": {
+    "simple": {
         "ssbu": "ssbu",
         "melee": "melee",
         "playercam": "camera",
