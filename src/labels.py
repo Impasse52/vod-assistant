@@ -62,3 +62,7 @@ def to_intervals(labels: np.ndarray, ignore: Any = None) -> list[tuple[int, int,
         for s, e in zip(starts, ends)
         if ignore is None or labels[s] != ignore
     ]
+
+
+def get_dataset_info(data_path: Path):
+    pass

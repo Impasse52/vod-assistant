@@ -5,12 +5,13 @@ import pandas as pd
 
 from src.labels import to_intervals
 
-LABELS = ["ssbu", "playercam", "comms", "layout", "none"]
+LABELS = ["ssbu", "melee", "playercam", "comms", "layout", "none"]
 
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
     "game-only": {
         "ssbu": "ssbu",
+        "melee": "melee",
         "playercam": "other",
         "comms": "other",
         "layout": "other",
@@ -18,6 +19,7 @@ MERGES = {
     },
     "cameras": {
         "ssbu": "ssbu",
+        "melee": "melee",
         "playercam": "camera",
         "comms": "camera",
         "layout": "none",
@@ -69,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--out-dir", required=False, default=Path("output"))
     t.add_argument("--classes", nargs="+", default=LABELS)
 
+    d = sub.add_parser("dataset-info", help="Show dataset info")
+    d.add_argument(
+        "--data-path", help="Path of data files", type=Path, default=Path("data")
+    )
+
     return p
 
 
@@ -96,6 +103,11 @@ def main(argv: list[str] | None = None) -> None:
         from src.pca import run_pca
 
         run_pca(args.emb_path, args.out_dir, args.labels_path)
+
+    if args.command == "dataset-info":
+        from src.labels import get_dataset_info
+
+        get_dataset_info(args.data_path)
 
     if args.command == "train":
         from src.train import train_logreg
