@@ -8,8 +8,11 @@ def pred_frames(emb_path: Path, model_path: Path):
     bundle = joblib.load(model_path)
     model, classes = bundle["model"], bundle["classes"]
 
-    X = np.load(emb_path)
-    pred = model.predict(X)  # X: (N, 768) embeddings
+    X = np.load(emb_path)  # (N, 768)
+    proba = model.predict_proba(X)  # (N, n_classes)
+
+    pred = proba.argmax(axis=1)
+    conf = proba[np.arange(len(pred)), pred]
     labels = [classes[i] for i in pred]
 
-    return labels
+    return labels, conf

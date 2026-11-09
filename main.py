@@ -121,9 +121,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "pred-frames":
         from src.pred import pred_frames
 
-        pred = pred_frames(args.emb_path, args.model_path)
-        intervals = to_intervals(pred)
-        df = pd.DataFrame(intervals, columns=["Start", "End", "Name"])
+        labels, conf = pred_frames(args.emb_path, args.model_path)
+        intervals = to_intervals(labels, conf)
+        df = pd.DataFrame(intervals, columns=["Start", "End", "Name", "Confidence"])
 
         args.out_dir.mkdir(parents=True, exist_ok=True)
         df.to_csv(

@@ -40,7 +40,9 @@ def to_indices(start: float, end: float, n: int) -> tuple[int, int]:
     return first, last
 
 
-def to_intervals(labels: np.ndarray, ignore: Any = None) -> list[tuple[int, int, Any]]:
+def to_intervals(
+    labels: np.ndarray, conf: list, ignore: Any = None
+) -> list[tuple[int, int, Any, float]]:
     """Group consecutive equal values of a per-second array into intervals.
 
     Row i covers the second [i, i + 1), so a run over rows first..last - 1
@@ -61,8 +63,8 @@ def to_intervals(labels: np.ndarray, ignore: Any = None) -> list[tuple[int, int,
     ends = np.concatenate((change, [len(labels)]))
 
     return [
-        (int(s), int(e), labels[s].item())
-        for s, e in zip(starts, ends)
+        (int(s), int(e), labels[s].item(), c)
+        for s, e, c in zip(starts, ends, conf)
         if ignore is None or labels[s] != ignore
     ]
 

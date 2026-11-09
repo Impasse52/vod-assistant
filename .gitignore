@@ -7,5 +7,5 @@ __pycache__
 
 output
 models
-embeddings
+embeddings*
 pca
