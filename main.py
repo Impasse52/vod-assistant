@@ -1,11 +1,13 @@
 import argparse
+import os
+from glob import glob
 from pathlib import Path
 
 import pandas as pd
 
 from src.labels import to_intervals
 
-LABELS = ["ssbu", "melee", "playercam", "comms", "layout", "none"]
+LABELS = ["ssbu", "melee", "playercam", "comms", "layout", "menu", "none"]
 
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
@@ -15,6 +17,7 @@ MERGES = {
         "playercam": "other",
         "comms": "other",
         "layout": "other",
+        "menu": "other",
         "none": "other",
     },
     "simple": {
@@ -23,9 +26,25 @@ MERGES = {
         "playercam": "camera",
         "comms": "camera",
         "layout": "none",
+        "menu": "none",
         "none": "none",
     },
 }
+
+
+def pairs_from_dirs(spec: str) -> list[str]:
+    """'EMBEDS_DIR:LABELS_DIR' -> ['embeds/x.npy:labels/x.csv', ...], matched by stem."""
+    emb_dir, labels_dir = map(Path, spec.split(":"))
+    embs = {p.stem: p for p in emb_dir.glob("*.npy")}
+    labels = {p.stem: p for p in labels_dir.glob("*.csv")}
+
+    if embs.keys() != labels.keys():
+        raise SystemExit(
+            "Mismatch between embeddings and labels, aborting training.\n"
+            f"  Embeddings without labels: {sorted(embs.keys() - labels.keys())}\n"
+            f"  Labels without embeddings: {sorted(labels.keys() - embs.keys())}"
+        )
+    return [f"{embs[s]}:{labels[s]}" for s in sorted(embs)]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,9 +65,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Train command
     t = sub.add_parser("train", help="train a per-second scene classifier")
-    t.add_argument(
-        "--pairs", nargs="+", help="embeds.npy:labels.csv, one per VOD", required=True
+
+    src = t.add_mutually_exclusive_group(required=True)
+    src.add_argument(
+        "--pairs",
+        nargs="+",
+        metavar="EMBEDS.npy:LABELS.csv",
+        help="embeds.npy:labels.csv, one per VOD",
     )
+    src.add_argument(
+        "--dirs",
+        metavar="LABELS_DIR:EMBEDS_DIR",
+        help="folder of label CSVs and folder of embeddings, matched by filename stem",
+    )
+
     t.add_argument("--classes", nargs="+", default=LABELS)
     t.add_argument(
         "--merge",
@@ -92,12 +122,18 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{dest} exists, skipping (use --force)")
             return
 
-        emb = embed(args.video_path, batch_size=args.batch_size, model_name=args.model)
-        tmp = dest.with_suffix(".tmp.npy")
-        np.save(tmp, emb)
-        tmp.replace(dest)
+        paths = [args.video_path]
+        if os.path.isdir(args.video_path):
+            paths = glob(f"{args.video_path}/*.mp4")
 
-        print(f"Saved {dest} {emb.shape}")
+        for path in paths:
+            print(f"Computing embeds for VOD: {path}")
+            emb = embed(path, batch_size=args.batch_size, model_name=args.model)
+            tmp = dest.with_suffix(".tmp.npy")
+            np.save(tmp, emb)
+            tmp.replace(dest)
+
+            print(f"Saved {dest} {emb.shape}")
 
     if args.command == "pca":
         from src.pca import run_pca
@@ -115,8 +151,11 @@ def main(argv: list[str] | None = None) -> None:
         name_map = MERGES[args.merge] if args.merge else None
         # Unique target classes, in order of first appearance.
         classes = list(dict.fromkeys(name_map.values())) if name_map else args.classes
-        print("classes:", classes)
-        train_logreg(args.pairs, classes, name_map)
+        print("Classes:", classes)
+
+        pairs = pairs_from_dirs(args.dirs) if args.dirs else args.pairs
+
+        train_logreg(pairs, classes, name_map)
 
     if args.command == "pred-frames":
         from src.pred import pred_frames

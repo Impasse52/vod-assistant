@@ -86,7 +86,7 @@ def train_logreg(
         accs.append(acc)
         f1s.append(f1)
         print(
-            f"Fold {fold}: test VODs={sorted(set(groups[test]))} "
+            f"Fold {fold}: test VODs={[pairs[id].split(':')[1] for id in sorted(set(groups[test]))]} "
             f"acc={acc:.3f} macro-F1={f1:.3f}"
         )
         print(
