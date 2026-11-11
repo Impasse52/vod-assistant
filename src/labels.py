@@ -70,4 +70,19 @@ def to_intervals(
 
 
 def get_dataset_info(data_path: Path):
-    pass
+    rows = {}
+    for csv_path in sorted(Path(data_path).glob("*.csv")):
+        df = pd.read_csv(csv_path)
+
+        # Number of samples covered by each segment (End treated as exclusive)
+        df["n_samples"] = (df["End"] - df["Start"]).round().astype(int)
+        rows[csv_path.stem] = df.groupby("Name")["n_samples"].sum()
+
+    # Missing labels in a CSV become 0
+    table = pd.DataFrame.from_dict(rows, orient="index").fillna(0).astype(int)
+    table.index.name = "dataset"
+
+    table["total"] = table.sum(axis=1)
+    table.loc["total"] = table.sum(axis=0)
+
+    return table.sort_index(axis=1)

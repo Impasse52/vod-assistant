@@ -11,6 +11,15 @@ LABELS = ["ssbu", "melee", "playercam", "comms", "layout", "menu", "none"]
 
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
+    "default": {
+        "ssbu": "ssbu",
+        "melee": "melee",
+        "playercam": "camera",
+        "comms": "camera",
+        "menu": "none",
+        "layout": "none",
+        "none": "none",
+    },
     "game-only": {
         "ssbu": "ssbu",
         "melee": "melee",
@@ -19,15 +28,6 @@ MERGES = {
         "layout": "other",
         "menu": "other",
         "none": "other",
-    },
-    "simple": {
-        "ssbu": "ssbu",
-        "melee": "melee",
-        "playercam": "camera",
-        "comms": "camera",
-        "layout": "none",
-        "menu": "none",
-        "none": "none",
     },
 }
 
@@ -80,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     t.add_argument("--classes", nargs="+", default=LABELS)
+    t.add_argument("--n-splits", default=5, type=int)
     t.add_argument(
         "--merge",
         choices=sorted(MERGES),
@@ -143,19 +144,26 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "dataset-info":
         from src.labels import get_dataset_info
 
-        get_dataset_info(args.data_path)
+        counts = get_dataset_info(args.data_path)
+        print(counts)
 
     if args.command == "train":
         from src.train import train_logreg
 
-        name_map = MERGES[args.merge] if args.merge else None
-        # Unique target classes, in order of first appearance.
+        name_map = MERGES[args.merge] if args.merge else MERGES["default"]
+
+        # Unique target classes
         classes = list(dict.fromkeys(name_map.values())) if name_map else args.classes
         print("Classes:", classes)
 
         pairs = pairs_from_dirs(args.dirs) if args.dirs else args.pairs
 
-        train_logreg(pairs, classes, name_map)
+        train_logreg(
+            pairs,
+            classes,
+            name_map,
+            args.n_splits,
+        )
 
     if args.command == "pred-frames":
         from src.pred import pred_frames

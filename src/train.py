@@ -78,13 +78,13 @@ def train_logreg(
         y_oof[test] = pred
 
         # Compute metrics
-        curr_labels = sorted(set(y[test]) | set(pred))
+        present = np.unique(y[test])
+
         acc = accuracy_score(y[test], pred)
-        f1 = f1_score(
-            y[test], pred, labels=curr_labels, average="macro", zero_division=0
-        )
+        f1 = f1_score(y[test], pred, labels=present, average="macro", zero_division=0)
         accs.append(acc)
         f1s.append(f1)
+
         print(
             f"Fold {fold}: test VODs={[pairs[id].split(':')[1] for id in sorted(set(groups[test]))]} "
             f"acc={acc:.3f} macro-F1={f1:.3f}"
@@ -93,8 +93,8 @@ def train_logreg(
             classification_report(
                 y[test],
                 pred,
-                labels=curr_labels,
-                target_names=[classes[i] for i in curr_labels],
+                labels=present,
+                target_names=[classes[i] for i in present],
                 zero_division=0,
             )
         )
