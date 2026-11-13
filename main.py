@@ -12,8 +12,8 @@ LABELS = ["ssbu", "melee", "playercam", "comms", "layout", "menu", "none"]
 # Map CSV class names to target classes. Every CSV name must be listed.
 MERGES = {
     "default": {
-        "ssbu": "ssbu",
-        "melee": "melee",
+        "ssbu": "game",
+        "melee": "game",
         "playercam": "camera",
         "comms": "camera",
         "menu": "none",
@@ -28,6 +28,15 @@ MERGES = {
         "layout": "other",
         "menu": "other",
         "none": "other",
+    },
+    "none": {
+        "ssbu": "ssbu",
+        "melee": "melee",
+        "playercam": "playercam",
+        "comms": "comms",
+        "layout": "layout",
+        "menu": "menu",
+        "none": "none",
     },
 }
 
@@ -107,6 +116,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-path", help="Path of data files", type=Path, default=Path("data")
     )
 
+    # Runs command
+    g = sub.add_parser("runs", help="Generate runs of games and their runs")
+    g.add_argument("--data-path", help="Path of csv", type=Path, required=True)
+    g.add_argument("--out-dir", required=False, default=Path("runs"))
+
+    # Runs to Sets command
+    g = sub.add_parser("runs-to-sets", help="Generate sets from runs")
+    g.add_argument("--data-path", help="Path of csv", type=Path, required=True)
+    g.add_argument("--out-dir", required=False, default=Path("output"))
+    g.add_argument("--lead", required=False, type=float, default=7.0)
+
     return p
 
 
@@ -176,6 +196,21 @@ def main(argv: list[str] | None = None) -> None:
         df.to_csv(
             Path(args.out_dir / args.emb_path.stem).with_suffix(".csv"), index=False
         )
+
+    if args.command == "runs":
+        from src.runs import draft_table
+
+        df = draft_table(args.data_path)
+
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(args.out_dir / f"{args.data_path.stem}_runs_draft.csv", index=False)
+
+    if args.command == "runs-to-sets":
+        from src.runs import runs_to_sets
+
+        df = runs_to_sets(args.data_path, args.lead)
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(args.out_dir / f"{args.data_path.stem}_sets.csv", index=False)
 
 
 if __name__ == "__main__":
